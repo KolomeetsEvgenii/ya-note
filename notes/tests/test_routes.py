@@ -14,8 +14,8 @@ class TestRoutes(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.author = User.objects.create(username='Авторизированный')
-        cls.reader = User.objects.create(username='Аноноимный')
+        cls.author = User.objects.create(username='author')
+        cls.reader = User.objects.create(username='reader')
         cls.note = Note.objects.create(
             title='Заголовок',
             text='Текст',
@@ -24,13 +24,13 @@ class TestRoutes(TestCase):
         )
 
     def test_home_page(self):
-        urls = (
-            ('notes:home'),
-            ('users:login'),
-            ('users:signup'),
+        public_pages = (
+            'notes:home',
+            'users:login',
+            'users:signup',
         )
 
-        for name in urls:
+        for name in public_pages:
             with self.subTest(name=name):
                 url = reverse(name)
                 response = self.client.get(url)
@@ -38,7 +38,7 @@ class TestRoutes(TestCase):
 
     def test_pages_availability_for_author_and_reader(self):
 
-        common_urls = (
+        common_pages = (
             'notes:add',
             'notes:list',
             'notes:success',
@@ -46,7 +46,7 @@ class TestRoutes(TestCase):
 
         for user in (self.author, self.reader):
             self.client.force_login(user)
-            for name in common_urls:
+            for name in common_pages:
                 with self.subTest(user=user.username, name=name):
                     url = reverse(name)
                     response = self.client.get(url)
@@ -58,7 +58,7 @@ class TestRoutes(TestCase):
         )
 
         note_args = (self.note.slug,)
-        urls = (
+        note_pages = (
             ('notes:edit', note_args),
             ('notes:detail', note_args),
             ('notes:delete', note_args),
@@ -66,7 +66,7 @@ class TestRoutes(TestCase):
 
         for user, status in users_statuses:
             self.client.force_login(user)
-            for name, args in urls:
+            for name, args in note_pages:
                 with self.subTest(user=user.username, name=name, args=args):
                     url = reverse(name, args=args)
                     response = self.client.get(url)
@@ -75,7 +75,7 @@ class TestRoutes(TestCase):
     def test_redirect_for_anonymous_client(self):
 
         note_args = (self.note.slug,)
-        urls = (
+        protected_pages = (
             ('notes:edit', note_args),
             ('notes:detail', note_args),
             ('notes:delete', note_args),
@@ -86,9 +86,19 @@ class TestRoutes(TestCase):
 
         login_url = reverse('users:login')
 
-        for name, args in urls:
+        for name, args in protected_pages:
             with self.subTest(name=name, args=args):
                 url = reverse(name, args=args)
                 redirect_url = f'{login_url}?next={url}'
                 response = self.client.get(url)
                 self.assertRedirects(response, redirect_url)
+
+    def test_logout_available(self):
+        url = reverse('users:logout')
+
+        response = self.client.post(url)
+        self.assertIn(response.status_code, (HTTPStatus.OK, HTTPStatus.FOUND))
+
+        self.client.force_login(self.author)
+        response = self.client.post(url)
+        self.assertIn(response.status_code, (HTTPStatus.OK, HTTPStatus.FOUND))
