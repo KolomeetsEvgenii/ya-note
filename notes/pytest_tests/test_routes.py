@@ -22,9 +22,9 @@ def test_pages_availability_for_anonymous_user(client, name):
     url = reverse(name)
 
     if name == 'users:logout':
-        response = client.post(url)  # logout вызывается POST
-        assert response.status_code == HTTPStatus.OK  # <-- у тебя 200, не 302
-        return  # <-- важно: чтобы не делать GET после POST
+        response = client.post(url)
+        assert response.status_code == HTTPStatus.OK
+        return
 
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
