@@ -1,74 +1,33 @@
-from django.contrib.auth import get_user_model
-from django.test import TestCase
-from django.urls import reverse
-
-from notes.models import Note
 from notes.forms import NoteForm
-
-User = get_user_model()
-
-LIST_URL = reverse('notes:list')
+from notes.tests.auth import BaseNoteTestCase
+from notes.tests.urls import ADD_URL, LIST_URL, note_url
 
 
-class TestNotesListContainsNotes(TestCase):
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.author = User.objects.create(username='author')
-        cls.notes = [
-            Note(
-                title=f'Заметка {index}',
-                text='Просто текст.',
-                slug=f'note-{index}',
-                author=cls.author,
-            )
-            for index in range(10)
-        ]
-        Note.objects.bulk_create(cls.notes)
-
+class TestContent(BaseNoteTestCase):
     def test_note_in_object_list(self):
-        self.client.force_login(self.author)
-        response = self.client.get(LIST_URL)
+        response = self.author_client.get(LIST_URL)
         object_list = response.context['object_list']
-        self.assertIn(self.notes[0], object_list)
 
+        note_from_list = object_list.get(pk=self.note.pk)
 
-class TestNotePrivate(TestCase):
-
-    @classmethod
-    def setUpTestData(cls):
-        cls.author1 = User.objects.create(username='author1')
-        cls.author2 = User.objects.create(username='author2')
-
-        cls.note_author1 = Note.objects.create(
-            title='Заметка1',
-            text='Просто текст.',
-            slug='note_author1',
-            author=cls.author1,
-        )
-        cls.note_author2 = Note.objects.create(
-            title='Заметка2',
-            text='Просто текст.',
-            slug='note_author2',
-            author=cls.author2,
-        )
+        self.assertEqual(note_from_list.title, self.note.title)
+        self.assertEqual(note_from_list.text, self.note.text)
+        self.assertEqual(note_from_list.slug, self.note.slug)
+        self.assertEqual(note_from_list.author, self.note.author)
 
     def test_user_sees_only_own_notes(self):
-        self.client.force_login(self.author1)
-        response = self.client.get(LIST_URL)
+        response = self.author_client.get(LIST_URL)
         object_list = response.context['object_list']
-        self.assertIn(self.note_author1, object_list)
-        self.assertNotIn(self.note_author2, object_list)
+
+        self.assertIn(self.note, object_list)
+        self.assertNotIn(self.reader_note, object_list)
 
     def test_pages_have_note_form(self):
-        self.client.force_login(self.author1)
-
-        response = self.client.get(reverse('notes:add'))
+        response = self.author_client.get(ADD_URL)
         self.assertIn('form', response.context)
         self.assertIsInstance(response.context['form'], NoteForm)
-        response = self.client.get(
-            reverse('notes:edit',
-                    args=(self.note_author1.slug,))
-        )
+
+        edit_url = note_url('notes:edit', self.note.slug)
+        response = self.author_client.get(edit_url)
         self.assertIn('form', response.context)
         self.assertIsInstance(response.context['form'], NoteForm)
